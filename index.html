@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f5257">
+<title>North Shore 住宅チェック</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+:root{--ac:#0f5257;--ac2:#e8f1f1;--bg:#f6f7f5;--fg:#1d2422;--mut:#6b7572;--line:#dfe3e1;--warn:#a5521b;--bad:#a12b2b;--ok:#2b7a3d;
+  --top:env(safe-area-inset-top,0px);--bot:env(safe-area-inset-bottom,0px)}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP","Yu Gothic",sans-serif;font-size:16px;-webkit-text-size-adjust:100%}
+button,input,select,textarea{font:inherit;color:inherit}
+header{position:fixed;top:0;left:0;right:0;z-index:1000;background:var(--ac);color:#fff;padding:calc(var(--top) + 10px) 14px 10px;font-weight:700;letter-spacing:.02em}
+header small{font-weight:400;opacity:.8;margin-left:6px;font-size:12px}
+nav{position:fixed;bottom:0;left:0;right:0;z-index:1000;display:flex;background:#fff;border-top:1px solid var(--line);padding-bottom:var(--bot)}
+nav button{flex:1;border:0;background:none;padding:8px 0 10px;font-size:12px;color:var(--mut);display:flex;flex-direction:column;align-items:center;gap:2px}
+nav button .i{font-size:20px;line-height:1}
+nav button.on{color:var(--ac);font-weight:700}
+main{position:fixed;top:calc(var(--top) + 44px);bottom:calc(var(--bot) + 56px);left:0;right:0;overflow:hidden}
+.view{position:absolute;inset:0;overflow-y:auto;display:none;-webkit-overflow-scrolling:touch}
+.view.on{display:block}
+#v-map.on{overflow:hidden}
+#map{position:absolute;inset:0}
+.searchbar{position:absolute;top:10px;left:10px;right:10px;z-index:500;display:flex;gap:6px}
+.searchbar input{flex:1;min-width:0;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.12)}
+.btn{border:0;border-radius:10px;padding:11px 14px;background:var(--ac);color:#fff;font-weight:600;white-space:nowrap}
+.btn.sec{background:#fff;color:var(--ac);border:1px solid var(--ac)}
+.btn.ghost{background:var(--ac2);color:var(--ac)}
+.btn.danger{background:#fff;color:var(--bad);border:1px solid var(--bad)}
+.btn.sm{padding:7px 10px;font-size:14px}
+.btn:disabled{opacity:.45}
+#results{position:absolute;top:60px;left:10px;right:10px;z-index:600;background:#fff;border-radius:10px;box-shadow:0 4px 14px rgba(0,0,0,.18);max-height:50%;overflow-y:auto;display:none}
+#results div{padding:11px 12px;border-bottom:1px solid var(--line);font-size:14px}
+#results div:last-child{border-bottom:0}
+.sheet{position:absolute;left:0;right:0;bottom:0;z-index:500;background:#fff;border-radius:16px 16px 0 0;box-shadow:0 -4px 16px rgba(0,0,0,.15);padding:12px 14px 14px;max-height:55%;overflow-y:auto;display:none}
+.sheet h3{margin:0 0 4px;font-size:16px}
+.mut{color:var(--mut);font-size:13px}
+.unk{color:var(--warn);font-weight:600}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px}
+.layerctl{position:absolute;right:10px;top:64px;z-index:450;background:#fff;border-radius:10px;padding:6px 10px;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+.layerctl label{display:flex;align-items:center;gap:6px;padding:3px 0}
+.pad{padding:14px}
+.card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px}
+.card h4{margin:0 0 4px;font-size:15px}
+.stars{color:#c98a00;letter-spacing:1px}
+.empty{text-align:center;color:var(--mut);padding:40px 20px;line-height:1.7}
+/* detail modal */
+#detail{position:fixed;inset:0;z-index:2000;background:var(--bg);display:none;overflow-y:auto;-webkit-overflow-scrolling:touch}
+#detail .dh{position:sticky;top:0;z-index:2;background:var(--ac);color:#fff;padding:calc(var(--top) + 10px) 12px 10px;display:flex;align-items:center;gap:8px}
+#detail .dh b{flex:1;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#detail .dh button{background:rgba(255,255,255,.18);color:#fff;border:0;border-radius:8px;padding:7px 11px}
+.sec-t{font-size:13px;font-weight:700;color:var(--ac);margin:18px 0 6px;text-transform:none}
+.f{margin-bottom:12px}
+.f label{display:block;font-size:13px;color:var(--mut);margin-bottom:4px}
+.f input,.f select,.f textarea{width:100%;padding:10px;border:1px solid var(--line);border-radius:9px;background:#fff}
+.f textarea{min-height:72px;resize:vertical}
+.hint{font-size:12px;color:var(--mut);margin-top:3px;line-height:1.5}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.links a{display:flex;justify-content:space-between;align-items:center;padding:11px 12px;background:#fff;border:1px solid var(--line);border-radius:10px;margin-bottom:6px;color:var(--fg);text-decoration:none;font-size:14px}
+.links a span{color:var(--mut);font-size:12px}
+.rate button{border:1px solid var(--line);background:#fff;border-radius:8px;width:44px;height:40px;font-size:18px;color:#bbb}
+.rate button.on{color:#c98a00;border-color:#e3c377;background:#fff8e6}
+.photos{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.photos div{position:relative;aspect-ratio:1;border-radius:8px;overflow:hidden;background:#ddd}
+.photos img{width:100%;height:100%;object-fit:cover;display:block}
+.photos button{position:absolute;top:4px;right:4px;border:0;border-radius:50%;width:26px;height:26px;background:rgba(0,0,0,.6);color:#fff;font-size:14px}
+.kv{display:grid;grid-template-columns:7.5em 1fr;gap:4px 8px;font-size:14px}
+.kv div:nth-child(odd){color:var(--mut)}
+/* compare */
+.cmpwrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--line);border-radius:12px;background:#fff}
+table.cmp{border-collapse:separate;border-spacing:0;font-size:13px;min-width:100%}
+table.cmp th,table.cmp td{padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top;min-width:140px;max-width:220px;text-align:left}
+table.cmp th:first-child,table.cmp td:first-child{position:sticky;left:0;background:#f1f4f3;min-width:92px;max-width:92px;font-weight:600;color:var(--mut);z-index:1}
+table.cmp thead th{background:var(--ac2);color:var(--ac);font-weight:700}
+table.cmp td.best{background:#eef7ef}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.chips label{display:flex;align-items:center;gap:4px;background:#fff;border:1px solid var(--line);border-radius:20px;padding:5px 10px;font-size:13px}
+.badge{display:inline-block;padding:2px 7px;border-radius:6px;font-size:12px;font-weight:600}
+.b-ok{background:#e6f3e8;color:var(--ok)}.b-warn{background:#fbeee3;color:var(--warn)}.b-unk{background:#eee;color:#666}
+/* dialog / toast */
+#dlg{position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,.4);display:none;align-items:center;justify-content:center;padding:20px}
+#dlg .box{background:#fff;border-radius:14px;padding:18px;max-width:360px;width:100%}
+#toast{position:fixed;left:50%;bottom:calc(var(--bot) + 72px);transform:translateX(-50%);z-index:3500;background:#222;color:#fff;padding:9px 14px;border-radius:20px;font-size:14px;display:none;max-width:90%;text-align:center}
+.num-icon{background:var(--ac);color:#fff;border:2px solid #fff;border-radius:50%;width:28px!important;height:28px!important;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;box-shadow:0 1px 4px rgba(0,0,0,.4)}
+.sel-icon{background:#d9480f;border:3px solid #fff;border-radius:50%;box-shadow:0 1px 5px rgba(0,0,0,.5)}
+.leaflet-control-attribution{font-size:10px}
+</style>
+</head>
+<body>
+<header>North Shore 住宅チェック<small>自分用MVP</small></header>
+
+<main>
+  <!-- 地図 -->
+  <section id="v-map" class="view on">
+    <div id="map"></div>
+    <div class="searchbar">
+      <input id="q" type="search" placeholder="住所を検索（例: 12 Beach Rd Browns Bay）" enterkeyhint="search">
+      <button class="btn" id="qbtn">検索</button>
+    </div>
+    <div id="results"></div>
+    <div class="layerctl">
+      <label><input type="checkbox" id="lyParcel" checked>区画境界</label>
+      <label><input type="checkbox" id="lyOlfp">浸水経路(参考)</label>
+    </div>
+    <div class="sheet" id="sheet"></div>
+  </section>
+
+  <!-- 候補一覧 -->
+  <section id="v-list" class="view"><div class="pad" id="listBody"></div></section>
+
+  <!-- 比較 -->
+  <section id="v-cmp" class="view"><div class="pad" id="cmpBody"></div></section>
+
+  <!-- 設定 -->
+  <section id="v-set" class="view"><div class="pad" id="setBody"></div></section>
+</main>
+
+<nav>
+  <button data-v="map" class="on"><span class="i">🗺️</span>地図</button>
+  <button data-v="list"><span class="i">🏠</span>候補</button>
+  <button data-v="cmp"><span class="i">⚖️</span>比較</button>
+  <button data-v="set"><span class="i">⚙️</span>設定</button>
+</nav>
+
+<div id="detail"></div>
+<div id="dlg"><div class="box" id="dlgBox"></div></div>
+<div id="toast"></div>
+<input type="file" id="photoIn" accept="image/*" multiple hidden>
+<input type="file" id="importIn" accept="application/json,.json" hidden>
+
+<script>
+'use strict';
+/* ================= 定数 ================= */
+// North Shore のおおよその範囲（Devonport〜Long Bay、Greenhithe〜東海岸）
+const NS = {s:-36.845, n:-36.655, w:174.640, e:174.812};
+const LINKS = {
+  homes: 'https://homes.co.nz/',
+  floodInfo: 'https://www.aucklandcouncil.govt.nz/en/environment/looking-after-aucklands-water/flooding-blockages/check-flood-risks-before-buy-build.html',
+  geomaps: 'https://geomapspublic.aucklandcouncil.govt.nz/viewer/index.html',
+  police: 'https://www.police.govt.nz/about-us/publications-statistics/data-and-statistics/policedatanz',
+  ldsLayer: 'https://data.linz.govt.nz/layer/50772-nz-primary-parcels/'
+};
+const OLFP_URL = 'https://services1.arcgis.com/n4yPwebTjJCmXB6W/arcgis/rest/services/Overland_Flow_Paths/FeatureServer/0/query';
+const NOISE = ['', '静か', '普通', 'やや気になる', 'うるさい'];
+const PARK = ['', '敷地内2台以上', '敷地内1台', '路上のみ', '駐車困難'];
+const CHECK = ['', '確認済み：問題なし', '確認済み：気になる点あり'];
+
+/* ================= ユーティリティ ================= */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const UNK = '<span class="unk">未確認</span>';
+const show = v => (v === '' || v == null) ? UNK : esc(v);
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const inNS = (lat, lng) => lat >= NS.s && lat <= NS.n && lng >= NS.w && lng <= NS.e;
+const fmtPrice = v => v ? '$' + Number(v).toLocaleString('en-NZ') : '';
+const fmtDate = v => { if (!v) return ''; const d = new Date(v); return isNaN(d) ? v : d.toLocaleString('ja-JP', {month:'numeric', day:'numeric', weekday:'short', hour:'2-digit', minute:'2-digit'}); };
+const stars = n => n ? '★'.repeat(n) + '☆'.repeat(5 - n) : '';
+function toast(msg, ms = 2200) { const t = $('#toast'); t.textContent = msg; t.style.display = 'block'; clearTimeout(t._h); t._h = setTimeout(() => t.style.display = 'none', ms); }
+function confirmDlg(msg, okLabel = 'OK') {
+  return new Promise(res => {
+    $('#dlgBox').innerHTML = `<div style="margin-bottom:14px;line-height:1.6">${msg}</div>
+      <div class="row" style="justify-content:flex-end"><button class="btn sec" id="dNo">キャンセル</button><button class="btn" id="dOk">${esc(okLabel)}</button></div>`;
+    $('#dlg').style.display = 'flex';
+    const done = v => { $('#dlg').style.display = 'none'; res(v); };
+    $('#dNo').onclick = () => done(false); $('#dOk').onclick = () => done(true);
+  });
+}
+
+/* ================= 設定（localStorage） ================= */
+const settings = (() => { try { return JSON.parse(localStorage.getItem('nshc-settings') || '{}'); } catch { return {}; } })();
+function saveSettings() { try { localStorage.setItem('nshc-settings', JSON.stringify(settings)); } catch {} }
+
+/* ================= データ保存（IndexedDB、失敗時はメモリ） ================= */
+const DB = {
+  db: null, mem: null,
+  async open() {
+    try {
+      this.db = await new Promise((res, rej) => {
+        const r = indexedDB.open('nshc', 1);
+        r.onupgradeneeded = () => r.result.createObjectStore('props', {keyPath: 'id'});
+        r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+      });
+    } catch (e) { this.mem = new Map(); toast('ブラウザ保存が使えません。閉じるとデータが消えます', 4000); }
+  },
+  tx(mode) { return this.db.transaction('props', mode).objectStore('props'); },
+  req(r) { return new Promise((res, rej) => { r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); },
+  async all() { if (this.mem) return [...this.mem.values()]; return this.req(this.tx('readonly').getAll()); },
+  async put(o) { if (this.mem) return this.mem.set(o.id, o); return this.req(this.tx('readwrite').put(o)); },
+  async del(id) { if (this.mem) return this.mem.delete(id); return this.req(this.tx('readwrite').delete(id)); },
+  async clear() { if (this.mem) return this.mem.clear(); return this.req(this.tx('readwrite').clear()); }
+};
+let props = [];
+async function reload() { props = (await DB.all()).sort((a, b) => a.createdAt - b.createdAt); drawSavedMarkers(); }
+
+/* ================= 地図 ================= */
+let map, osm, aerial, selMarker = null, parcelLayer, olfpLayer, savedLayer, sel = null;
+function initMap() {
+  map = L.map('map', {zoomControl: false, maxBounds: [[NS.s - 0.08, NS.w - 0.1], [NS.n + 0.08, NS.e + 0.1]]})
+    .setView([-36.755, 174.735], 13);
+  osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19, attribution: '© OpenStreetMap contributors'});
+  setBasemap();
+  // North Shore の範囲を薄く表示
+  L.rectangle([[NS.s, NS.w], [NS.n, NS.e]], {color: '#0f5257', weight: 1, fill: false, dashArray: '4 6', interactive: false}).addTo(map);
+  parcelLayer = L.layerGroup().addTo(map);
+  olfpLayer = L.layerGroup().addTo(map);
+  savedLayer = L.layerGroup().addTo(map);
+  map.on('click', e => selectPoint(e.latlng.lat, e.latlng.lng, null));
+  map.on('moveend', () => { if ($('#lyOlfp').checked) loadOlfp(); });
+}
+function setBasemap() {
+  if (aerial) { map.removeLayer(aerial); aerial = null; }
+  if (settings.basemapsKey && settings.useAerial) {
+    aerial = L.tileLayer('https://basemaps.linz.govt.nz/v1/tiles/aerial/WebMercatorQuad/{z}/{x}/{y}.webp?api=' + encodeURIComponent(settings.basemapsKey),
+      {maxZoom: 21, maxNativeZoom: 20, attribution: 'Imagery © LINZ CC BY 4.0'});
+    if (map.hasLayer(osm)) map.removeLayer(osm);
+    aerial.addTo(map);
+  } else if (!map.hasLayer(osm)) osm.addTo(map);
+}
+function drawSavedMarkers() {
+  if (!savedLayer) return;
+  savedLayer.clearLayers();
+  props.forEach((p, i) => {
+    L.marker([p.lat, p.lng], {icon: L.divIcon({className: 'num-icon', html: String(i + 1), iconSize: [28, 28]})})
+      .on('click', ev => { L.DomEvent.stopPropagation(ev); selectPoint(p.lat, p.lng, p.address, p.id); })
+      .addTo(savedLayer);
+  });
+}
+
+/* ---------- 住所検索（OSM Nominatim） ---------- */
+async function doSearch() {
+  const q = $('#q').value.trim(); if (!q) return;
+  const box = $('#results'); box.style.display = 'block'; box.innerHTML = '<div class="mut">検索中…</div>';
+  const url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=8&countrycodes=nz&bounded=1'
+    + '&viewbox=' + [NS.w, NS.n, NS.e, NS.s].join(',') + '&q=' + encodeURIComponent(q);
+  try {
+    const r = await fetch(url, {headers: {'Accept-Language': 'en'}});
+    const j = await r.json();
+    if (!j.length) { box.innerHTML = '<div class="mut">North Shore内で見つかりませんでした。番地・通り名・地区名で試すか、地図をタップしてください。</div>'; return; }
+    box.innerHTML = '';
+    j.forEach(it => {
+      const d = document.createElement('div');
+      const label = addrFromNominatim(it) || it.display_name;
+      d.innerHTML = `<b>${esc(label)}</b><div class="mut">${esc(it.display_name)}</div>`;
+      d.onclick = () => { box.style.display = 'none'; selectPoint(+it.lat, +it.lon, label); map.setView([+it.lat, +it.lon], 18); };
+      box.appendChild(d);
+    });
+  } catch (e) { box.innerHTML = '<div class="mut">検索に失敗しました（通信エラー）。</div>'; }
+}
+function addrFromNominatim(it) {
+  const a = it.address || {};
+  const street = [a.house_number, a.road].filter(Boolean).join(' ');
+  const sub = a.suburb || a.neighbourhood || a.city_district || a.town || '';
+  return [street, sub].filter(Boolean).join(', ');
+}
+async function reverseGeocode(lat, lng) {
+  try {
+    const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&zoom=18&lat=${lat}&lon=${lng}`, {headers: {'Accept-Language': 'en'}});
+    const j = await r.json(); return addrFromNominatim(j) || '';
+  } catch { return ''; }
+}
+
+/* ---------- 地点選択 ---------- */
+async function selectPoint(lat, lng, address, savedId) {
+  $('#results').style.display = 'none';
+  if (selMarker) map.removeLayer(selMarker);
+  selMarker = L.marker([lat, lng], {icon: L.divIcon({className: 'sel-icon', iconSize: [18, 18]})}).addTo(map);
+  sel = {lat, lng, address: address || '', savedId: savedId || null, addrSource: address ? 'search' : 'reverse', parcel: null, parcelStatus: 'loading'};
+  renderSheet();
+  if (!address) { sel.address = await reverseGeocode(lat, lng); renderSheet(); }
+  if ($('#lyParcel').checked) await loadParcels(sel);
+  else { sel.parcelStatus = 'off'; renderSheet(); }
+}
+function renderSheet() {
+  const s = sel, el = $('#sheet');
+  if (!s) { el.style.display = 'none'; return; }
+  el.style.display = 'block';
+  const ok = inNS(s.lat, s.lng);
+  const saved = s.savedId ? props.find(p => p.id === s.savedId) : null;
+  let parcelHtml;
+  switch (s.parcelStatus) {
+    case 'loading': parcelHtml = '<span class="mut">区画を取得中…</span>'; break;
+    case 'nokey': parcelHtml = `${UNK} <span class="mut">（設定でLINZ APIキーを入力すると境界を表示）</span>`; break;
+    case 'off': parcelHtml = '<span class="mut">区画表示オフ</span>'; break;
+    case 'fail': parcelHtml = `${UNK} <span class="mut">（取得できませんでした）</span>`; break;
+    case 'none': parcelHtml = `${UNK} <span class="mut">（この地点に区画データなし）</span>`; break;
+    default: parcelHtml = s.parcel ? `${esc(s.parcel.appellation || '')}　<b>${s.parcel.area ? Math.round(s.parcel.area).toLocaleString() + ' m²' : '面積' + UNK}</b>` : UNK;
+  }
+  el.innerHTML = `
+    <h3>${s.address ? esc(s.address) : '住所' + UNK}</h3>
+    ${s.addrSource === 'reverse' && s.address ? '<div class="mut">地図タップからの推定住所です。保存後に編集できます。</div>' : ''}
+    <div class="mut" style="margin-top:4px">区画（LINZ）：${parcelHtml}</div>
+    ${ok ? '' : '<div class="unk" style="margin-top:6px">North Shoreの範囲外です（試作版は範囲内のみ保存可）</div>'}
+    <div class="row">
+      ${saved ? `<button class="btn" id="shOpen">メモを開く</button>`
+              : `<button class="btn" id="shSave" ${ok ? '' : 'disabled'}>＋ 候補に保存</button>`}
+      <button class="btn sec" id="shClose">閉じる</button>
+    </div>`;
+  if (saved) $('#shOpen').onclick = () => openDetail(saved.id);
+  else $('#shSave').onclick = saveSelected;
+  $('#shClose').onclick = () => { sel = null; el.style.display = 'none'; if (selMarker) map.removeLayer(selMarker); parcelLayer.clearLayers(); };
+}
+async function saveSelected() {
+  const s = sel; if (!s) return;
+  const p = {id: uid(), createdAt: Date.now(), address: s.address, lat: s.lat, lng: s.lng,
+    parcel: s.parcel ? {appellation: s.parcel.appellation, area: s.parcel.area, titles: s.parcel.titles, fetchedAt: Date.now()} : null,
+    price: '', viewing: '', noiseDay: '', noiseDayNote: '', noiseNight: '', noiseNightNote: '',
+    neighborDist: '', parking: '', parkingNote: '', pros: '', cons: '', rating: 0, photos: [],
+    floodCheck: '', floodNote: '', crimeCheck: '', crimeNote: '', homesUrl: ''};
+  await DB.put(p); await reload();
+  sel.savedId = p.id; renderSheet();
+  toast('候補に保存しました'); openDetail(p.id);
+}
+
+/* ---------- LINZ 区画（WFS, layer 50772） ---------- */
+function walkCoords(g, fn) {
+  if (!g) return;
+  const rec = a => (typeof a[0] === 'number') ? fn(a) : a.forEach(rec);
+  rec(g.coordinates);
+}
+function normalizeFC(fc) {
+  // 軸順が lat,lon で返ってきた場合は lon,lat に入れ替える（NZでは lat<0, lon>100）
+  let first = null;
+  for (const f of fc.features) { walkCoords(f.geometry, c => { if (!first) first = c; }); if (first) break; }
+  if (first && first[0] < 0 && first[1] > 100) fc.features.forEach(f => walkCoords(f.geometry, c => { const t = c[0]; c[0] = c[1]; c[1] = t; }));
+  return fc;
+}
+function pointInRing(pt, ring) {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i], [xj, yj] = ring[j];
+    if (((yi > pt[1]) !== (yj > pt[1])) && (pt[0] < (xj - xi) * (pt[1] - yi) / (yj - yi) + xi)) inside = !inside;
+  }
+  return inside;
+}
+function pointInGeom(pt, g) {
+  const polys = g.type === 'Polygon' ? [g.coordinates] : g.type === 'MultiPolygon' ? g.coordinates : [];
+  return polys.some(poly => pointInRing(pt, poly[0]) && !poly.slice(1).some(h => pointInRing(pt, h)));
+}
+async function fetchParcels(lat, lng) {
+  const key = (settings.ldsKey || '').trim();
+  if (!key) return {status: 'nokey'};
+  const dLat = 0.0007, dLng = 0.0009; // 約80m四方
+  const base = `https://data.linz.govt.nz/services;key=${encodeURIComponent(key)}/wfs?service=WFS&version=2.0.0&request=GetFeature`
+    + `&typeNames=layer-50772&outputFormat=application/json&srsName=EPSG:4326&count=80`;
+  const urls = [
+    base + '&cql_filter=' + encodeURIComponent(`bbox(shape,${lat - dLat},${lng - dLng},${lat + dLat},${lng + dLng})`),
+    base + '&bbox=' + [lat - dLat, lng - dLng, lat + dLat, lng + dLng].join(',') + ',urn:ogc:def:crs:EPSG::4326'
+  ];
+  let gotResponse = false;
+  for (const u of urls) {
+    try {
+      const r = await fetch(u); if (!r.ok) continue;
+      const j = await r.json(); gotResponse = true;
+      if (j.features && j.features.length) return {status: 'ok', fc: normalizeFC(j)};
+    } catch (e) { /* 次の方式を試す */ }
+  }
+  return {status: gotResponse ? 'none' : 'fail'};
+}
+async function loadParcels(s) {
+  parcelLayer.clearLayers();
+  s.parcelStatus = 'loading'; renderSheet();
+  const res = await fetchParcels(s.lat, s.lng);
+  if (sel !== s) return; // 別の地点を選び直した
+  if (res.status !== 'ok') { s.parcelStatus = res.status; renderSheet(); return; }
+  const pt = [s.lng, s.lat];
+  let target = null;
+  res.fc.features.forEach(f => {
+    const pr = f.properties || {};
+    const intent = String(pr.parcel_intent || '');
+    if (/road|hydro|railway/i.test(intent)) return; // 道路・水域は描かない
+    const isT = !target && f.geometry && pointInGeom(pt, f.geometry);
+    if (isT) target = f;
+    L.geoJSON(f, {interactive: false, style: isT
+      ? {color: '#d9480f', weight: 3, fillColor: '#d9480f', fillOpacity: .12}
+      : {color: '#0f5257', weight: 1.5, fillOpacity: 0, dashArray: '3 3'}}).addTo(parcelLayer);
+  });
+  if (target) {
+    const pr = target.properties || {};
+    s.parcel = {appellation: pr.appellation || '', area: Number(pr.calc_area || pr.survey_area) || null, titles: pr.titles || ''};
+    s.parcelStatus = 'ok';
+    if (s.savedId) { // 保存済みなら区画情報を更新
+      const p = props.find(x => x.id === s.savedId);
+      if (p && !p.parcel) { p.parcel = {...s.parcel, fetchedAt: Date.now()}; await DB.put(p); }
+    }
+  } else s.parcelStatus = 'none';
+  renderSheet();
+}
+
+/* ---------- Overland Flow Paths（Auckland Council, 参考表示） ---------- */
+let olfpTimer;
+function loadOlfp() {
+  clearTimeout(olfpTimer);
+  olfpTimer = setTimeout(async () => {
+    olfpLayer.clearLayers();
+    if (map.getZoom() < 16) { toast('浸水経路はズーム16以上で表示します'); return; }
+    const b = map.getBounds();
+    const params = new URLSearchParams({where: '1=1', geometry: [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()].join(','),
+      geometryType: 'esriGeometryEnvelope', inSR: '4326', spatialRel: 'esriSpatialRelIntersects',
+      outFields: 'CatchmentAreaGroup', outSR: '4326', f: 'geojson', resultRecordCount: '2000'});
+    try {
+      const r = await fetch(OLFP_URL + '?' + params); const j = await r.json();
+      L.geoJSON(j, {interactive: false, style: f => {
+        const g = Number((f.properties || {}).CatchmentAreaGroup) || 1;
+        return {color: g >= 3 ? '#0070ff' : '#4d9fff', weight: g >= 5 ? 4 : g >= 4 ? 3 : 2, dashArray: g <= 2 ? '5 4' : null};
+      }}).addTo(olfpLayer);
+    } catch (e) { toast('浸水経路データを取得できませんでした'); }
+  }, 350);
+}
+
+/* ================= 画面切替 ================= */
+function go(v) {
+  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
+  document.querySelectorAll('.view').forEach(s => s.classList.toggle('on', s.id === 'v-' + v));
+  if (v === 'map') setTimeout(() => map.invalidateSize(), 50);
+  if (v === 'list') renderList();
+  if (v === 'cmp') renderCompare();
+  if (v === 'set') renderSettings();
+}
+
+/* ================= 候補一覧 ================= */
+function renderList() {
+  const el = $('#listBody');
+  if (!props.length) { el.innerHTML = '<div class="empty">まだ候補がありません。<br>地図で住所を検索するか、地図をタップして「候補に保存」してください。</div>'; return; }
+  el.innerHTML = props.map((p, i) => `
+    <div class="card" data-id="${p.id}">
+      <h4>${i + 1}. ${p.address ? esc(p.address) : '住所' + UNK}</h4>
+      <div class="kv">
+        <div>価格</div><div>${show(fmtPrice(p.price))}</div>
+        <div>見学</div><div>${show(fmtDate(p.viewing))}</div>
+        <div>評価</div><div>${p.rating ? `<span class="stars">${stars(p.rating)}</span>` : UNK}</div>
+        <div>土地面積</div><div>${p.parcel && p.parcel.area ? Math.round(p.parcel.area).toLocaleString() + ' m²' : UNK}</div>
+      </div>
+      <div class="row"><button class="btn sm" data-a="open">メモ・リンク</button><button class="btn sm ghost" data-a="map">地図で見る</button></div>
+    </div>`).join('');
+  el.querySelectorAll('.card').forEach(c => {
+    c.querySelector('[data-a=open]').onclick = () => openDetail(c.dataset.id);
+    c.querySelector('[data-a=map]').onclick = () => { const p = props.find(x => x.id === c.dataset.id); go('map'); map.setView([p.lat, p.lng], 18); selectPoint(p.lat, p.lng, p.address, p.id); };
+  });
+}
+
+/* ================= 物件詳細（見学メモ・外部リンク） ================= */
+let cur = null;
+function opt(list, v) { return list.map(o => `<option value="${esc(o)}" ${o === v ? 'selected' : ''}>${o ? esc(o) : '未確認'}</option>`).join(''); }
+function extLinks(p) {
+  const a = p.address || `${p.lat.toFixed(5)},${p.lng.toFixed(5)}`;
+  const gq = s => 'https://www.google.com/search?q=' + encodeURIComponent(s);
+  const L1 = [];
+  if (p.homesUrl) L1.push([p.homesUrl, 'この物件のHomes.co.nzページ', '保存したURL']);
+  L1.push([gq('site:homes.co.nz ' + a), 'Homes.co.nzで物件ページを探す', 'Google検索経由'],
+    [LINKS.homes, 'Homes.co.nz を開く', '価格推定・売買履歴'],
+    [gq('site:oneroof.co.nz ' + a), 'OneRoofで探す', 'Google検索経由'],
+    [LINKS.floodInfo, 'Auckland Council Flood Viewer', '洪水・Overland Flow Path'],
+    [LINKS.geomaps, 'Auckland Council GeoMaps', '詳細な地図レイヤー'],
+    [LINKS.police, 'NZ Police 犯罪統計（policedata.nz）', '地域単位の統計'],
+    [`https://www.google.com/maps/search/?api=1&query=${p.lat},${p.lng}`, 'Google マップ（周辺・ストリートビュー）', '']);
+  return L1.map(([u, t, s]) => `<a href="${esc(u)}" target="_blank" rel="noopener">${esc(t)}<span>${esc(s)} ↗</span></a>`).join('');
+}
+function openDetail(id) {
+  const p = props.find(x => x.id === id); if (!p) return;
+  cur = JSON.parse(JSON.stringify(p));
+  renderDetail();
+  $('#detail').style.display = 'block'; $('#detail').scrollTop = 0;
+}
+function renderDetail() {
+  const p = cur;
+  $('#detail').innerHTML = `
+  <div class="dh"><button id="dBack">‹ 戻る</button><b>${p.address ? esc(p.address) : '住所未確認'}</b><button id="dSave">保存</button></div>
+  <div class="pad">
+    <div class="sec-t">基本情報</div>
+    <div class="f"><label>住所</label><input id="f_address" value="${esc(p.address)}" placeholder="例: 12 Beach Road, Browns Bay"></div>
+    <div class="kv" style="margin-bottom:6px">
+      <div>区画（LINZ）</div><div>${p.parcel && p.parcel.appellation ? esc(p.parcel.appellation) : UNK}</div>
+      <div>土地面積</div><div>${p.parcel && p.parcel.area ? Math.round(p.parcel.area).toLocaleString() + ' m²（計算値）' : UNK}</div>
+    </div>
+    <div class="hint">区画データ：LINZ Data Service（CC BY 4.0）。面積は図上の計算値で、正式な面積は権利証で確認してください。</div>
+
+    <div class="sec-t">外部サイトで確認</div>
+    <div class="links">${extLinks(p)}</div>
+    <div class="row" style="margin-top:2px"><button class="btn sm ghost" id="copyAddr">住所をコピー</button><span class="mut">各サイトの検索欄に貼り付けられます</span></div>
+    <div class="f" style="margin-top:10px"><label>Homes.co.nz の物件ページURL（見つけたら貼り付け）</label><input id="f_homesUrl" type="url" value="${esc(p.homesUrl)}" placeholder="https://homes.co.nz/address/..."></div>
+
+    <div class="two">
+      <div class="f"><label>洪水リスク確認</label><select id="f_floodCheck">${opt(CHECK, p.floodCheck)}</select></div>
+      <div class="f"><label>治安統計確認</label><select id="f_crimeCheck">${opt(CHECK, p.crimeCheck)}</select></div>
+    </div>
+    <div class="f"><label>洪水・治安について自分で確認したこと</label><textarea id="f_floodNote" placeholder="例: Flood Viewerで敷地の北側にOverland Flow Pathあり">${esc(p.floodNote)}</textarea></div>
+
+    <div class="sec-t">見学メモ</div>
+    <div class="two">
+      <div class="f"><label>価格（NZD）</label><input id="f_price" type="number" inputmode="numeric" value="${esc(p.price)}" placeholder="950000"></div>
+      <div class="f"><label>見学日時</label><input id="f_viewing" type="datetime-local" value="${esc(p.viewing)}"></div>
+    </div>
+    <div class="two">
+      <div class="f"><label>昼の騒音</label><select id="f_noiseDay">${opt(NOISE, p.noiseDay)}</select></div>
+      <div class="f"><label>夜の騒音</label><select id="f_noiseNight">${opt(NOISE, p.noiseNight)}</select></div>
+    </div>
+    <div class="f"><label>騒音メモ（自分が現地で聞いた音だけ）</label><textarea id="f_noiseDayNote" placeholder="例: 平日18時、幹線道路の車の音が室内でも聞こえた">${esc(p.noiseDayNote)}</textarea>
+      <div class="hint">隣人の名前・属性・「どんな人か」の推測は記録しないでください。音の種類・時間帯・聞こえた場所など事実のみ。</div></div>
+    <div class="two">
+      <div class="f"><label>隣家との距離（m・目測/実測）</label><input id="f_neighborDist" type="number" inputmode="decimal" value="${esc(p.neighborDist)}"></div>
+      <div class="f"><label>駐車</label><select id="f_parking">${opt(PARK, p.parking)}</select></div>
+    </div>
+    <div class="f"><label>駐車メモ</label><input id="f_parkingNote" value="${esc(p.parkingNote)}" placeholder="例: ガレージ1台＋ドライブウェイ1台"></div>
+    <div class="f"><label>良い点</label><textarea id="f_pros">${esc(p.pros)}</textarea></div>
+    <div class="f"><label>気になる点</label><textarea id="f_cons">${esc(p.cons)}</textarea></div>
+    <div class="f"><label>評価</label><div class="rate row" id="rate">${[1,2,3,4,5].map(n => `<button data-n="${n}" class="${n <= p.rating ? 'on' : ''}">★</button>`).join('')}
+      <button data-n="0" class="btn sm sec" style="width:auto;color:var(--mut);font-size:13px">クリア</button></div></div>
+
+    <div class="sec-t">写真（${p.photos.length}枚）</div>
+    <div class="photos" id="photos">${p.photos.map((ph, i) => `<div><img src="${ph}" alt=""><button data-i="${i}">×</button></div>`).join('')}</div>
+    <div class="row"><button class="btn sec" id="addPhoto">＋ 写真を追加</button><span class="mut">端末内に縮小して保存</span></div>
+
+    <div class="row" style="margin:26px 0 30px;justify-content:space-between">
+      <button class="btn danger" id="dDel">この候補を削除</button><button class="btn" id="dSave2">保存して閉じる</button>
+    </div>
+  </div>`;
+  $('#dBack').onclick = closeDetail;
+  $('#dSave').onclick = $('#dSave2').onclick = async () => { await saveDetail(); closeDetail(); toast('保存しました'); };
+  $('#dDel').onclick = async () => {
+    if (!await confirmDlg('この候補と写真・メモをすべて削除しますか？', '削除')) return;
+    await DB.del(cur.id); await reload(); closeDetail(); if (sel && sel.savedId === cur.id) { sel.savedId = null; renderSheet(); } renderList(); toast('削除しました');
+  };
+  $('#copyAddr').onclick = async () => { try { await navigator.clipboard.writeText(collect().address); toast('住所をコピーしました'); } catch { toast('コピーできませんでした'); } };
+  $('#rate').querySelectorAll('button').forEach(b => b.onclick = () => { collect(); cur.rating = +b.dataset.n; renderDetailKeepScroll(); });
+  $('#addPhoto').onclick = () => { collect(); $('#photoIn').click(); };
+  $('#photos').querySelectorAll('button').forEach(b => b.onclick = () => { collect(); cur.photos.splice(+b.dataset.i, 1); renderDetailKeepScroll(); });
+  $('#photos').querySelectorAll('img').forEach(img => img.onclick = () => {
+    $('#dlgBox').innerHTML = `<img src="${img.src}" style="width:100%;border-radius:8px"><div class="row" style="justify-content:flex-end"><button class="btn" id="dOk">閉じる</button></div>`;
+    $('#dlg').style.display = 'flex'; $('#dOk').onclick = () => $('#dlg').style.display = 'none';
+  });
+}
+function renderDetailKeepScroll() { const y = $('#detail').scrollTop; renderDetail(); $('#detail').scrollTop = y; }
+const FIELDS = ['address','homesUrl','floodCheck','crimeCheck','floodNote','price','viewing','noiseDay','noiseNight','noiseDayNote','neighborDist','parking','parkingNote','pros','cons'];
+function collect() { FIELDS.forEach(k => { const e = $('#f_' + k); if (e) cur[k] = e.value.trim(); }); return cur; }
+async function saveDetail() {
+  collect();
+  if (cur.homesUrl && !/^https:\/\/(www\.)?homes\.co\.nz\//i.test(cur.homesUrl)) { toast('Homes.co.nzのURLではないため保存しませんでした'); cur.homesUrl = ''; }
+  await DB.put(cur); await reload();
+}
+function closeDetail() { $('#detail').style.display = 'none'; cur = null; if ($('#v-list').classList.contains('on')) renderList(); if ($('#v-cmp').classList.contains('on')) renderCompare(); }
+$('#photoIn').onchange = async e => {
+  const files = [...e.target.files]; e.target.value = '';
+  for (const f of files) { try { cur.photos.push(await shrink(f)); } catch { toast('読み込めない画像がありました'); } }
+  renderDetailKeepScroll();
+};
+function shrink(file, max = 1280, q = .72) {
+  return new Promise((res, rej) => {
+    const img = new Image(), url = URL.createObjectURL(file);
+    img.onload = () => {
+      const s = Math.min(1, max / Math.max(img.width, img.height));
+      const c = document.createElement('canvas'); c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url);
+      res(c.toDataURL('image/jpeg', q));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(); };
+    img.src = url;
+  });
+}
+
+/* ================= 比較 ================= */
+let cmpSel = null, cmpSort = 'order';
+function renderCompare() {
+  const el = $('#cmpBody');
+  if (props.length < 1) { el.innerHTML = '<div class="empty">比較する候補がありません。</div>'; return; }
+  if (!cmpSel) cmpSel = new Set(props.map(p => p.id));
+  props.forEach(p => { if (!cmpSel.has(p.id) && !cmpSel._seen?.has(p.id)) cmpSel.add(p.id); });
+  cmpSel._seen = new Set(props.map(p => p.id));
+  let list = props.map((p, i) => ({...p, no: i + 1})).filter(p => cmpSel.has(p.id));
+  if (cmpSort === 'rating') list.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+  if (cmpSort === 'price') list.sort((a, b) => (Number(a.price) || Infinity) - (Number(b.price) || Infinity));
+  if (cmpSort === 'area') list.sort((a, b) => ((b.parcel && b.parcel.area) || 0) - ((a.parcel && a.parcel.area) || 0));
+  const best = (vals, dir) => { const n = vals.map(Number).filter(v => v > 0); if (n.length < 2) return null; return dir > 0 ? Math.max(...n) : Math.min(...n); };
+  const bPrice = best(list.map(p => p.price), -1), bRate = best(list.map(p => p.rating), 1),
+        bArea = best(list.map(p => p.parcel && p.parcel.area), 1), bDist = best(list.map(p => p.neighborDist), 1);
+  const badge = v => !v ? '<span class="badge b-unk">未確認</span>' : v.includes('問題なし') ? '<span class="badge b-ok">問題なし</span>' : '<span class="badge b-warn">気になる点あり</span>';
+  const rows = [
+    ['価格', p => show(fmtPrice(p.price)), p => bPrice && Number(p.price) === bPrice],
+    ['評価', p => p.rating ? `<span class="stars">${stars(p.rating)}</span>` : UNK, p => bRate && p.rating === bRate],
+    ['土地面積', p => p.parcel && p.parcel.area ? Math.round(p.parcel.area).toLocaleString() + ' m²' : UNK, p => bArea && p.parcel && p.parcel.area === bArea],
+    ['見学日時', p => show(fmtDate(p.viewing))],
+    ['昼の騒音', p => show(p.noiseDay)],
+    ['夜の騒音', p => show(p.noiseNight)],
+    ['騒音メモ', p => show(p.noiseDayNote)],
+    ['隣家距離', p => p.neighborDist ? esc(p.neighborDist) + ' m' : UNK, p => bDist && Number(p.neighborDist) === bDist],
+    ['駐車', p => show(p.parking) + (p.parkingNote ? `<div class="mut">${esc(p.parkingNote)}</div>` : '')],
+    ['洪水確認', p => badge(p.floodCheck)],
+    ['治安確認', p => badge(p.crimeCheck)],
+    ['良い点', p => show(p.pros)],
+    ['気になる点', p => show(p.cons)],
+    ['写真', p => p.photos.length ? `<img src="${p.photos[0]}" style="width:100%;max-width:180px;border-radius:6px;display:block">${p.photos.length}枚` : UNK]
+  ];
+  el.innerHTML = `
+    <div class="chips">${props.map((p, i) => `<label><input type="checkbox" data-id="${p.id}" ${cmpSel.has(p.id) ? 'checked' : ''}>${i + 1}. ${esc((p.address || '未確認').split(',')[0])}</label>`).join('')}</div>
+    <div class="row" style="margin:0 0 10px"><span class="mut">並べ替え</span>
+      <select id="cmpSort" style="padding:7px;border-radius:8px;border:1px solid var(--line);background:#fff">
+        <option value="order">登録順</option><option value="rating">評価が高い順</option><option value="price">価格が安い順</option><option value="area">土地が広い順</option>
+      </select></div>
+    ${list.length ? `<div class="cmpwrap"><table class="cmp">
+      <thead><tr><th>項目</th>${list.map(p => `<th>${p.no}. ${p.address ? esc(p.address) : '住所未確認'}<div><button class="btn sm ghost" data-open="${p.id}" style="margin-top:6px">開く</button></div></th>`).join('')}</tr></thead>
+      <tbody>${rows.map(([lab, f, b]) => `<tr><td>${lab}</td>${list.map(p => `<td class="${b && b(p) ? 'best' : ''}" style="white-space:pre-wrap">${f(p)}</td>`).join('')}</tr>`).join('')}</tbody>
+    </table></div>
+    <div class="hint" style="margin-top:8px">緑色＝その項目で最も良い値（価格は安い、面積・隣家距離は大きい、評価は高い）。空欄は「未確認」と表示します。</div>`
+    : '<div class="empty">比較する候補を選んでください。</div>'}`;
+  $('#cmpSort').value = cmpSort;
+  $('#cmpSort').onchange = e => { cmpSort = e.target.value; renderCompare(); };
+  el.querySelectorAll('.chips input').forEach(c => c.onchange = () => { c.checked ? cmpSel.add(c.dataset.id) : cmpSel.delete(c.dataset.id); renderCompare(); });
+  el.querySelectorAll('[data-open]').forEach(b => b.onclick = () => openDetail(b.dataset.open));
+}
+
+/* ================= 設定 ================= */
+function renderSettings() {
+  $('#setBody').innerHTML = `
+    <div class="card">
+      <h4>LINZ Data Service APIキー（区画境界用）</h4>
+      <div class="hint" style="margin-bottom:8px">無料。<a href="https://data.linz.govt.nz/" target="_blank" rel="noopener">data.linz.govt.nz</a> でアカウント作成 → 右上メニュー「API keys」で作成し、ここに貼り付けます。キーはこの端末のブラウザ内にのみ保存されます。</div>
+      <div class="f"><input id="s_lds" value="${esc(settings.ldsKey || '')}" placeholder="LDS APIキー" autocomplete="off"></div>
+      <h4 style="margin-top:12px">LINZ Basemaps APIキー（航空写真・任意）</h4>
+      <div class="hint" style="margin-bottom:8px"><a href="https://basemaps.linz.govt.nz/" target="_blank" rel="noopener">basemaps.linz.govt.nz</a> で発行。入れると背景を航空写真に切替できます。</div>
+      <div class="f"><input id="s_bm" value="${esc(settings.basemapsKey || '')}" placeholder="Basemaps APIキー" autocomplete="off"></div>
+      <label style="display:flex;gap:8px;align-items:center;font-size:14px"><input type="checkbox" id="s_aer" ${settings.useAerial ? 'checked' : ''}>背景を航空写真にする</label>
+      <div class="row"><button class="btn" id="s_save">設定を保存</button></div>
+    </div>
+    <div class="card">
+      <h4>データのバックアップ</h4>
+      <div class="hint" style="margin-bottom:8px">データはこの端末のブラウザ内だけに保存されています（${props.length}件）。ブラウザのデータ消去で消えるので、ときどき書き出してください。</div>
+      <div class="row"><button class="btn sec" id="s_exp">JSONで書き出す</button><button class="btn sec" id="s_imp">読み込む</button></div>
+      <div class="row"><button class="btn danger" id="s_clr">全データを削除</button></div>
+    </div>
+    <div class="card">
+      <h4>データの出典・方針</h4>
+      <div class="hint">
+        ・地図：© OpenStreetMap contributors／住所検索：Nominatim（OSM）<br>
+        ・区画境界：LINZ Data Service「NZ Primary Parcels」— Sourced from the LINZ Data Service and licensed for reuse under CC BY 4.0（所有者名は取得しません）<br>
+        ・浸水経路：Auckland Council Overland Flow Paths（参考表示。正式判断はFlood Viewer・LIMで）<br>
+        ・Homes.co.nz・NZ Police統計：データ取得はせず、公式サイトへのリンクのみ<br>
+        ・取得できない情報は推測せず「未確認」と表示します。隣人の個人情報は扱いません。
+      </div>
+    </div>`;
+  $('#s_save').onclick = () => {
+    settings.ldsKey = $('#s_lds').value.trim(); settings.basemapsKey = $('#s_bm').value.trim();
+    settings.useAerial = $('#s_aer').checked && !!settings.basemapsKey;
+    saveSettings(); setBasemap(); toast('設定を保存しました');
+  };
+  $('#s_exp').onclick = () => {
+    const blob = new Blob([JSON.stringify({app: 'nshc', version: 1, exportedAt: new Date().toISOString(), props}, null, 1)], {type: 'application/json'});
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = 'northshore-house-check-' + new Date().toISOString().slice(0, 10) + '.json'; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  };
+  $('#s_imp').onclick = () => $('#importIn').click();
+  $('#s_clr').onclick = async () => { if (await confirmDlg('すべての候補・メモ・写真を削除します。元に戻せません。', '全削除')) { await DB.clear(); await reload(); renderSettings(); toast('削除しました'); } };
+}
+$('#importIn').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  try {
+    const j = JSON.parse(await f.text()); const arr = Array.isArray(j) ? j : j.props;
+    if (!Array.isArray(arr)) throw 0;
+    let n = 0; for (const p of arr) { if (p && p.id && typeof p.lat === 'number') { p.photos = p.photos || []; await DB.put(p); n++; } }
+    await reload(); renderSettings(); toast(n + '件を読み込みました');
+  } catch { toast('読み込めないファイルです'); }
+};
+
+/* ================= 起動 ================= */
+document.querySelectorAll('nav button').forEach(b => b.onclick = () => go(b.dataset.v));
+$('#qbtn').onclick = doSearch;
+$('#q').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('#q').blur(); doSearch(); } });
+$('#lyParcel').onchange = e => { if (e.target.checked) { if (sel) loadParcels(sel); } else { parcelLayer.clearLayers(); if (sel) { sel.parcelStatus = 'off'; renderSheet(); } } };
+$('#lyOlfp').onchange = e => { if (e.target.checked) loadOlfp(); else olfpLayer.clearLayers(); };
+(async () => {
+  if (typeof L === 'undefined') { document.body.insertAdjacentHTML('beforeend', '<div style="position:fixed;inset:80px 20px auto;background:#fff;padding:16px;border-radius:10px;z-index:4000">地図ライブラリを読み込めませんでした。通信状況を確認して再読み込みしてください。</div>'); return; }
+  initMap();
+  await DB.open();
+  await reload();
+})();
+</script>
+</body>
+</html>
