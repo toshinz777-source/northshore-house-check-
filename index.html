@@ -518,7 +518,13 @@ function renderDetail() {
       <button class="btn danger" id="dDel">この候補を削除</button><button class="btn" id="dSave2">保存して閉じる</button>
     </div>
   </div>`;
-  $('#dBack').onclick = closeDetail;
+  $('#dBack').onclick = async () => {
+    collect(); // 入力欄の内容を集める
+    const orig = props.find(x => x.id === cur.id); // 保存済みの内容
+    const changed = JSON.stringify(cur) !== JSON.stringify(orig);
+    if (changed && !await confirmDlg('保存していない変更があります。保存せずに戻りますか？', '保存せずに戻る')) return;
+    closeDetail();
+  };
   $('#dSave').onclick = $('#dSave2').onclick = async () => { await saveDetail(); closeDetail(); toast('保存しました'); };
   $('#dDel').onclick = async () => {
     if (!await confirmDlg('この候補と写真・メモをすべて削除しますか？', '削除')) return;
